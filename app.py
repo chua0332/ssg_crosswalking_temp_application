@@ -1,5 +1,6 @@
 import streamlit as st
 import requests
+import pandas as pd
 
 # ===========================================
 # CONFIG
@@ -45,7 +46,7 @@ st.sidebar.info("Built with Streamlit + FastAPI ⚡")
 if page == "Single Query":
 
     st.title("🔍 Skill Matcher")
-    st.write("Enter a skill title and description to query the FastAPI endpoint.")
+    st.write("Enter a skill title and description to query the FastAPI crosswalking endpoint.")
 
     col1, col2 = st.columns([1, 2])
     with col1:
@@ -73,20 +74,88 @@ if page == "Single Query":
 
 
 # ===========================================
-# 2️⃣ BATCH MODE PLACEHOLDER
+# 2️⃣ BATCH MODE 
 # ===========================================
 else:
-    st.title("📄 Batch Mode")
-    st.write("This feature is coming soon! 🚧")
+    st.title("📄 Batch Skill Crosswalking")
+    st.write("Upload a CSV file with `skill_title` and `skill_description` columns.")
 
-    st.info(
-        "Batch mode will allow you to upload a CSV file with multiple skills and "
-        "automatically query the FastAPI endpoint for each row.\n\n"
-        "For now, this page is a placeholder."
-    )
+    uploaded_file = st.file_uploader("Upload CSV File", type=["csv"])
 
-    st.image(
-        "https://cdn-icons-png.flaticon.com/512/565/565654.png",
-        width=150,
-        caption="Batch mode loading soon!"
-    )
+    if uploaded_file:
+        try:
+            df = pd.read_csv(uploaded_file)
+        except Exception as e:
+            st.error(f"Failed to read CSV file: {e}")
+            st.stop()
+
+        required_cols = {"skill_title", "skill_description"}
+        if not required_cols.issubset(df.columns):
+            st.error(f"CSV must contain columns: {required_cols}")
+            st.stop()
+
+        st.success(f"Loaded {len(df)} rows.")
+        st.write(df.head())
+
+        if st.button("Start Batch Crosswalking", type="primary"):
+            st.info("Processing... this may take some time depending on number of rows.")
+            results = []
+
+            progress_bar = st.progress(0)
+            status_text = st.empty()
+
+            for i, row in df.iterrows():
+
+                title = str(row["skill_title"])
+                description = str(row["skill_description"])
+
+                try:
+                    result, status = call_api(title, description)
+
+                    if status is None:
+                        # API failed entirely
+                        output_row = {
+                            "input_skill_title": title,
+                            "input_skill_description": description,
+                            "output_skill_id": None,
+                            "output_skill_title": None,
+                            "output_skill_description": None,
+                            "score": None,
+                            "isDuplicate": None,
+                            "error": result.get("error", "Unknown error during API call")
+                        }
+                    else:
+                        # API succeeded -> read your real fields
+                        output_row = {
+                            "input_skill_title": result.get("input_skill_title"),
+                            "input_skill_description": result.get("input_skill_description"),
+                            "output_skill_id": result.get("output_skill_id"),
+                            "output_skill_title": result.get("output_skill_title"),
+                            "output_skill_description": result.get("output_skill_description"),
+                            "score": result.get("score"),
+                            "isDuplicate": result.get("isDuplicate"),
+                            "error": None
+                        }
+
+                except Exception as e:
+                    # Hard exception, like HTTP error or network timeout
+                    output_row = {
+                        "input_skill_title": title,
+                        "input_skill_description": description,
+                        "output_skill_id": None,
+                        "output_skill_title": None,
+                        "output_skill_description": None,
+                        "score": None,
+                        "isDuplicate": None,
+                        "error": str(e)
+                    }
+
+                results.append(output_row)
+
+                progress_bar.progress((i + 1) / len(df))
+                status_text.text(f"Processed {i+1}/{len(df)} rows")
+
+            st.success("Batch processing complete!")
+
+            result_df = pd.DataFrame(results)
+            st.dataframe(result_df, use_container_width=True)
