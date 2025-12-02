@@ -25,13 +25,13 @@ def call_api(title: str, description: str):
 # PAGE SETUP
 # ===========================================
 st.set_page_config(
-    page_title="Skill Matching UI",
+    page_title="Skill Matching crosswalking UI",
     page_icon="🔍",
     layout="wide"
 )
 
 st.sidebar.title("🧭 Navigation")
-page = st.sidebar.radio("Go to", ["Single Query", "Batch Mode (Coming Soon)"])
+page = st.sidebar.radio("Go to", ["Single Query", "Batch Mode"])
 
 st.sidebar.markdown("---")
 st.sidebar.markdown("**API Endpoint**")
@@ -45,7 +45,7 @@ st.sidebar.info("Built with Streamlit + FastAPI ⚡")
 # ===========================================
 if page == "Single Query":
 
-    st.title("🔍 Skill Matcher")
+    st.title("🔍 Skill Matching - crosswalking")
     st.write("Enter a skill title and description to query the FastAPI crosswalking endpoint.")
 
     col1, col2 = st.columns([1, 2])
