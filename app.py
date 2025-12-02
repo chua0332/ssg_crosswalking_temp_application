@@ -1,6 +1,7 @@
 import streamlit as st
 import requests
 import pandas as pd
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 # ===========================================
 # CONFIG
@@ -99,24 +100,36 @@ else:
 
         if st.button("Start Batch Crosswalking", type="primary"):
             st.info("Processing... this may take some time depending on number of rows.")
+
             results = []
+
+            # Parallel executor with safe number of workers
+            max_workers = 5
 
             progress_bar = st.progress(0)
             status_text = st.empty()
 
-            for i, row in df.iterrows():
+            tasks = []
+            with ThreadPoolExecutor(max_workers=max_workers) as executor:
+                # Create one task per row
+                for i, row in df.iterrows():
+                    tasks.append(executor.submit(
+                        call_api,
+                        str(row["skill_title"]),
+                        str(row["skill_description"])
+                    ))
 
-                title = str(row["skill_title"])
-                description = str(row["skill_description"])
+                completed = 0
 
-                try:
-                    result, status = call_api(title, description)
+                # Process tasks as they complete
+                for future in as_completed(tasks):
+                    result, status = future.result()
 
                     if status is None:
-                        # API failed entirely
+                        # API failure
                         output_row = {
-                            "input_skill_title": title,
-                            "input_skill_description": description,
+                            "input_skill_title": None,
+                            "input_skill_description": None,
                             "output_skill_id": None,
                             "output_skill_title": None,
                             "output_skill_description": None,
@@ -125,7 +138,7 @@ else:
                             "error": result.get("error", "Unknown error during API call")
                         }
                     else:
-                        # API succeeded -> read your real fields
+                        # Successful output from your API format
                         output_row = {
                             "input_skill_title": result.get("input_skill_title"),
                             "input_skill_description": result.get("input_skill_description"),
@@ -137,24 +150,13 @@ else:
                             "error": None
                         }
 
-                except Exception as e:
-                    # Hard exception, like HTTP error or network timeout
-                    output_row = {
-                        "input_skill_title": title,
-                        "input_skill_description": description,
-                        "output_skill_id": None,
-                        "output_skill_title": None,
-                        "output_skill_description": None,
-                        "score": None,
-                        "isDuplicate": None,
-                        "error": str(e)
-                    }
+                    results.append(output_row)
 
-                results.append(output_row)
+                    completed += 1
+                    progress_bar.progress(completed / len(df))
+                    status_text.text(f"Processed {completed}/{len(df)} rows")
 
-                progress_bar.progress((i + 1) / len(df))
-                status_text.text(f"Processed {i+1}/{len(df)} rows")
-
+            # 🎉 Done
             st.success("Batch processing complete!")
 
             result_df = pd.DataFrame(results)
