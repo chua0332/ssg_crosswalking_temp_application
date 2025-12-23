@@ -47,7 +47,7 @@ st.sidebar.info("Built with Streamlit + FastAPI ⚡")
 if page == "Single Query":
 
     st.title("🔍 Skill Matching - crosswalking")
-    st.write("Enter a skill title and description to query the FastAPI crosswalking endpoint.")
+    st.write("Enter a skill title and description to query the crosswalking endpoint.")
 
     col1, col2 = st.columns([1, 2])
     with col1:
